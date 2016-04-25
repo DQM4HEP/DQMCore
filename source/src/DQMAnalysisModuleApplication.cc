@@ -206,10 +206,7 @@ StatusCode DQMAnalysisModuleApplication::run()
 				firstMessage = false;
 			}
 
-			timespec timesleep;
-			timesleep.tv_sec = 0;
-			timesleep.tv_nsec = 1000000L;
-			nanosleep(&timesleep, NULL);
+			DQMCoreTool::sleep(std::chrono::seconds(1));
 		}
 
 		if(this->shouldStopApplication())
@@ -264,16 +261,16 @@ StatusCode DQMAnalysisModuleApplication::run()
 				if( this->shouldStopApplication() )
 					break;
 
-				DQMEvent *pEvent = NULL;
-				m_pEventClient->takeEvent(pEvent);
+				DQMEventPtr event;
+				m_pEventClient->takeEvent(event);
 
-				if(NULL == pEvent)
+				if(NULL == event)
 					continue;
 
 				try
 				{
-					StatusCode statusCode = pAnalysisModule->processEvent(pEvent);
-					m_pCycle->eventProcessed(pEvent);
+					StatusCode statusCode = pAnalysisModule->processEvent(event.get());
+					m_pCycle->eventProcessed(event.get());
 				}
 				catch(StatusCodeException &exception)
 				{
@@ -283,9 +280,6 @@ StatusCode DQMAnalysisModuleApplication::run()
 				{
 					LOG4CXX_ERROR( dqmMainLogger , m_moduleLogStr << " , Module::processEvent(evt) caught unknown exception !");
 				}
-
-				if(pEvent)
-					delete pEvent;
 			}
 
 			m_pCycle->stopCycle();
@@ -293,8 +287,8 @@ StatusCode DQMAnalysisModuleApplication::run()
 			LOG4CXX_INFO( dqmMainLogger , m_moduleLogStr << " , End of cycle reached !");
 			LOG4CXX_INFO( dqmMainLogger , m_moduleLogStr << " , Printing statistics :");
 			LOG4CXX_INFO( dqmMainLogger , m_moduleLogStr << " , *** N processed events : " << m_pCycle->getNProcessedEvents());
-			LOG4CXX_INFO( dqmMainLogger , m_moduleLogStr << " , *** Event rate         : " << m_pCycle->getProcessingRate()*1000.f << " evts/s");
-			LOG4CXX_INFO( dqmMainLogger , m_moduleLogStr << " , *** Processing time    : " << m_pCycle->getTotalCycleTime().operator long long()/1000.f << " s");
+			LOG4CXX_INFO( dqmMainLogger , m_moduleLogStr << " , *** Event rate         : " << m_pCycle->getProcessingRate() << " evts/s");
+			LOG4CXX_INFO( dqmMainLogger , m_moduleLogStr << " , *** Processing time    : " << m_pCycle->getTotalCycleTime().count() << " s");
 
 			// archive publication if user asked for
 			if(m_settings.m_shouldOpenArchive)
@@ -327,7 +321,7 @@ StatusCode DQMAnalysisModuleApplication::run()
 		m_pEventClient->clearQueue();
 
 		// fill the run end time
-		pRun->setEndTime(time(NULL));
+		pRun->setEndTime(DQMCoreTool::now());
 
 		// process the end of run module stuff
 		RETURN_RESULT_IF(STATUS_CODE_SUCCESS, !=, pAnalysisModule->endOfRun(pRun));
@@ -346,6 +340,20 @@ StatusCode DQMAnalysisModuleApplication::run()
 	LOG4CXX_INFO( dqmMainLogger , m_moduleLogStr << " , Exiting application !");
 
 	return this->getReturnCode();
+}
+
+//-------------------------------------------------------------------------------------------------
+
+DQMRun *DQMAnalysisModuleApplication::getCurrentRun() const
+{
+	return m_pRunControlClient->getCurrentRun();
+}
+
+//-------------------------------------------------------------------------------------------------
+
+DQMCycle *DQMAnalysisModuleApplication::getCycle() const
+{
+	return m_pCycle;
 }
 
 //-------------------------------------------------------------------------------------------------

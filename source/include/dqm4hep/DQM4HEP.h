@@ -48,6 +48,12 @@
 #include <limits>
 #include <pthread.h>
 
+#ifndef __CINT__
+#include <memory>
+#include <chrono>
+#include <ratio>
+#endif
+
 
 // apple stuff for stdint.h
 #ifdef __APPLE__
@@ -69,12 +75,6 @@
 #include "DQMCoreConfig.h"
 
 //-------------------------------------------------------------------------------------------------
-
-// bit operations
-#define DQM_BIT(n)       (1ULL << (n))
-#define DQM_SETBIT(n,i)  ((n) |= DQM_BIT(i))
-#define DQM_CLRBIT(n,i)  ((n) &= ~DQM_BIT(i))
-#define DQM_TESTBIT(n,i) ((bool)(((n) & DQM_BIT(i)) != 0))
 
 #if defined(__GNUC__) && defined(BACKTRACE)
     #include <cstdlib>
@@ -105,6 +105,21 @@ class DQMStatisticsService;
 class DQMPath;
 struct DQMStats;
 
+/** allocator_helper class
+ */
+template <typename BaseType, typename RealType, typename... Args>
+class allocator_helper
+{
+public:
+	/** Create a new instance of RealType, inheriting
+	 *  from BaseType using Args type as constructor parameters
+	 */
+	BaseType *create(Args ... parameters) const
+	{
+		return new RealType(parameters...);
+	}
+};
+
 //-------------------------------------------------------------------------------------------------
 
 // typedefs for streaming
@@ -131,26 +146,35 @@ typedef std::vector<double>         DoubleVector;
 typedef std::vector<std::string>    StringVector;
 typedef std::set<std::string>       StringSet;
 
-// specifics typedefs
-//typedef std::map<std::string, std::vector<std::string> > SubscriptionMap;
+typedef std::vector<DQMMonitorElement*>                  DQMMonitorElementList;
+typedef std::map<const std::string, DQMMonitorElement*>  DQMMonitorElementMap;
+typedef std::queue<DQMEvent*>                            DQMEventQueue;
+typedef std::map<std::string, DQMQualityTestResult>      DQMQualityTestResultMap;
+typedef std::map<std::string, DQMQualityTest*>           DQMQualityTestMap;
+typedef std::vector<DQMStats>                            DQMStatsList;
 
-typedef std::vector<DQMMonitorElement*> DQMMonitorElementList;
-typedef std::map<const std::string, DQMMonitorElement*> DQMMonitorElementMap;
+// C++11 stuff incompatible with CINT
+#ifndef __CINT__
 
-typedef std::queue<DQMEvent*> DQMEventQueue;
+typedef std::chrono::system_clock::time_point               DQMTimePoint;
+typedef std::chrono::duration<double>                       DQMTimeDuration;
 
-typedef std::map<std::string, DQMQualityTestResult> DQMQualityTestResultMap;
-typedef std::map<std::string, DQMQualityTest*>      DQMQualityTestMap;
+typedef std::shared_ptr<DQMMonitorElement>                  DQMMonitorElementPtr;
+typedef std::vector<DQMMonitorElementPtr>                   DQMMonitorElementPtrList;
+typedef std::map<const std::string, DQMMonitorElementPtr>   DQMMonitorElementPtrMap;
+typedef std::shared_ptr<DQMEvent>                           DQMEventPtr;
+typedef std::queue<DQMEventPtr>                             DQMEventPtrQueue;
+typedef std::shared_ptr<DQMQualityTest>                     DQMQualityTestPtr;
+typedef std::map<std::string, DQMMonitorElementPtrList>     DQMPublication;
 
-typedef std::vector<DQMStats> DQMStatsList;
+#endif
 
 // typedef for messaging
-typedef std::map<std::string, DQMMonitorElementList> DQMPublication;
-typedef std::map<std::string, std::string> DQMMonitorElementInfo;
-typedef std::vector<DQMMonitorElementInfo> DQMMonitorElementInfoList;
-typedef std::map<std::string, std::string> DQMHostInfo;
-typedef std::map<std::string, std::string> DQMMonitorElementListNameRequest;
-typedef std::multimap<std::string, std::string> DQMMonitorElementRequest;
+typedef std::map<std::string, std::string>         DQMMonitorElementInfo;
+typedef std::vector<DQMMonitorElementInfo>         DQMMonitorElementInfoList;
+typedef std::map<std::string, std::string>         DQMHostInfo;
+typedef std::map<std::string, std::string>         DQMMonitorElementListNameRequest;
+typedef std::multimap<std::string, std::string>    DQMMonitorElementRequest;
 
 }
 
@@ -572,6 +596,46 @@ inline DQMResetPolicy stringToResetPolicy(const std::string &str)
 {
 	DQM_RESET_POLICY_TABLE(GET_STR_COMPARE)
 	else return NO_RESET_POLICY;
+}
+
+
+//-------------------------------------------------------------------------------------------------
+
+// definitions of the alert type table
+#define DQM_ALERT_TYPE_TABLE(d) \
+    d(SOFTWARE_ALERT,  "SoftwareAlert") \
+    d(DANGER_ALERT,    "DangerAlert") \
+    d(BIOHAZARD_ALERT, "BiohazardAlert") \
+    d(LEAK_ALERT,      "LeakAlert") \
+    d(DAQ_ALERT,       "DaqAlert") \
+    d(OTHER_ALERT,     "OtherAlert")
+
+/** DQMAlertType enum
+ *
+ *  Defines different types of alert that
+ *  could be raised by module or a generic
+ *  emitter. The OTHER_ALERT is a user defined
+ *  generic alert type
+ */
+enum DQMAlertType
+{
+	DQM_ALERT_TYPE_TABLE(GET_ENUM_ENTRY)
+	NUMBER_OF_DQM_ALERT_TYPES
+};
+
+inline std::string alertTypeToString(const DQMAlertType type)
+{
+	switch (type)
+	{
+	DQM_ALERT_TYPE_TABLE(GET_NAME_SWITCH)
+	default : throw dqm4hep::StatusCodeException(STATUS_CODE_INVALID_PARAMETER);
+	}
+}
+
+inline DQMAlertType stringToAlertType(const std::string &str)
+{
+	DQM_ALERT_TYPE_TABLE(GET_STR_COMPARE)
+	else return OTHER_ALERT;
 }
 
 //-------------------------------------------------------------------------------------------------

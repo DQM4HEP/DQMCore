@@ -146,6 +146,10 @@ StatusCode DQMMonitorElementClient::connectToService()
 	ss << collectorName << "COLLECTOR_STATE_SVC";
 	m_pCollectorStateInfo = new DimInfo( (char*) ss.str().c_str() , static_cast<int>(STOPPED_STATE) , this );
 
+	ss.str("");
+	ss << collectorName << "AVAILABLE_ME_SVC";
+	m_pAvailableMeInfo = new DimUpdatedInfo( (char*) ss.str().c_str() , (void *) NULL , 0, this );
+
 	m_isConnected = true;
 
 	this->setUpdateMode(this->getUpdateMode());
@@ -168,6 +172,7 @@ StatusCode DQMMonitorElementClient::disconnectFromService()
 	delete m_pMeListNameRpcInfo; m_pMeListNameRpcInfo = NULL;
 	delete m_pMeUpdateInfo; m_pMeUpdateInfo = NULL;
 	delete m_pCollectorStateInfo; m_pCollectorStateInfo = NULL;
+	delete m_pAvailableMeInfo; m_pAvailableMeInfo = NULL;
 
 	m_isConnected = false;
 
@@ -482,8 +487,6 @@ void DQMMonitorElementClient::infoHandler()
 		catch(...)
 		{
 		}
-
-		this->clearPublication(monitorElementPublication);
 	}
 	else if(pInfo == m_pCollectorStateInfo)
 	{
@@ -514,23 +517,39 @@ void DQMMonitorElementClient::infoHandler()
 				(*iter)->onServerShutdown(this);
 		}
 	}
-}
-
-//-------------------------------------------------------------------------------------------------
-
-void DQMMonitorElementClient::clearPublication(DQMPublication &publication)
-{
-	for(DQMPublication::iterator iter = publication.begin(), endIter = publication.end() ;
-			endIter != iter ; ++iter)
+	else if(pInfo == m_pAvailableMeInfo)
 	{
-		for(DQMMonitorElementList::iterator meIter = iter->second.begin(), meEndIter = iter->second.end() ;
-				meEndIter != meIter ; ++meIter)
+		DQMMonitorElementInfoList availableMeList;
+
+		try
 		{
-			delete *meIter;
+			if(m_listeners.empty())
+				return;
+
+			dqm_char *pBuffer = static_cast<dqm_char *>(m_pAvailableMeInfo->getData());
+			dqm_uint bufferSize = m_pAvailableMeInfo->getSize();
+
+			if(NULL == pBuffer || 0 == bufferSize)
+				throw StatusCodeException(STATUS_CODE_FAILURE);
+
+			this->configureInBuffer( pBuffer , bufferSize );
+
+			// deserialize and call the user call back function
+			if( xdrstream::XDR_SUCCESS != DQMStreamingHelper::read( m_pInBuffer , availableMeList ) )
+				throw StatusCodeException(STATUS_CODE_FAILURE);
+
+			for(std::vector<DQMMonitorElementClientListener *>::iterator iter = m_listeners.begin(), endIter = m_listeners.end() ;
+					endIter != iter ; ++iter)
+				(*iter)->monitorElementsAvailable(this, availableMeList);
+		}
+		catch(StatusCodeException &exception)
+		{
+			LOG4CXX_WARN( dqmMainLogger , "Couldn't receive available me: " << exception.toString() );
+		}
+		catch(...)
+		{
 		}
 	}
-
-	publication.clear();
 }
 
 //-------------------------------------------------------------------------------------------------

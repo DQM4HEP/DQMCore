@@ -252,17 +252,17 @@ StatusCode DQMArchiver::recursiveFill(DQMDirectory *pDirectory, TDirectory *pROO
 
 			if(NULL != pROOTSubDir)
 			{
-				RETURN_RESULT_IF(STATUS_CODE_SUCCESS, !=, recursiveFill(pSubDir, pROOTSubDir));
+				RETURN_RESULT_IF(STATUS_CODE_SUCCESS, !=, DQMArchiver::recursiveFill(pSubDir, pROOTSubDir));
 			}
 		}
 	}
 
-	const std::vector<DQMMonitorElement*> &monitorElementList(pDirectory->getMonitorElementList());
+	const DQMMonitorElementPtrList &monitorElementList(pDirectory->getMonitorElementList());
 
 	// write the monitor elements
-	if(!monitorElementList.empty())
+	if( ! monitorElementList.empty() )
 	{
-		RETURN_RESULT_IF(STATUS_CODE_SUCCESS, !=, writeMonitorElements(pDirectory, pROOTDir));
+		RETURN_RESULT_IF(STATUS_CODE_SUCCESS, !=, DQMArchiver::writeMonitorElements(pDirectory, pROOTDir));
 	}
 
 	return STATUS_CODE_SUCCESS;
@@ -277,15 +277,13 @@ StatusCode DQMArchiver::writeMonitorElements(DQMDirectory *pDirectory, TDirector
 
 	pROOTDir->cd();
 
-	const DQMMonitorElementList &monitorElementList(pDirectory->getMonitorElementList());
+	const DQMMonitorElementPtrList &monitorElementList(pDirectory->getMonitorElementList());
 
-	for(DQMMonitorElementList::const_iterator iter = monitorElementList.begin(), endIter = monitorElementList.end() ;
+	for(DQMMonitorElementPtrList::const_iterator iter = monitorElementList.begin(), endIter = monitorElementList.end() ;
 			endIter != iter ; ++iter)
 	{
-		DQMMonitorElement *pMonitorElement = *iter;
-
-		TObject *pObject = pMonitorElement->getObject();
-		pROOTDir->WriteObjectAny(pObject, pObject->IsA(), pMonitorElement->getName().c_str());
+		TObject *pObject = (*iter)->getObject();
+		pROOTDir->WriteObjectAny(pObject, pObject->IsA(), (*iter)->getName().c_str());
 	}
 
 	return STATUS_CODE_SUCCESS;

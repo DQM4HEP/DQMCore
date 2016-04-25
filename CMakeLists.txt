@@ -5,14 +5,28 @@
 CMAKE_MINIMUM_REQUIRED( VERSION 2.6 FATAL_ERROR )
 #################################################
 
+###############################
 # project name
 PROJECT( DQMCore )
 
-SET( ${PROJECT_NAME}_VERSION_MAJOR 1 )
-SET( ${PROJECT_NAME}_VERSION_MINOR 1 )
+SET( ${PROJECT_NAME}_VERSION_MAJOR 2 )
+SET( ${PROJECT_NAME}_VERSION_MINOR 2 )
 SET( ${PROJECT_NAME}_VERSION_PATCH 0 )
 
-# ----- dependencies -----
+###############################
+# Require C++11
+INCLUDE( CheckCXXCompilerFlag )
+
+CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
+
+IF( COMPILER_SUPPORTS_CXX11 )
+  SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+ELSE()
+	MESSAGE( SEND_ERROR "DQMCore requires C++11 support. Please upgrade your compiler !" )
+ENDIF()
+
+###############################
+# Dependencies
 LIST( APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake )
 INCLUDE( default_settings )
 
@@ -21,6 +35,7 @@ INCLUDE( default_settings )
 
 OPTION( INSTALL_DOC "Set to OFF to skip build/install Documentation" OFF )
 OPTION( BUILD_EXAMPLES "Whether to build DQM4HEP examples" OFF )
+OPTION( BUILD_EVB "Whether to build the evb examples" OFF )
 
 ###############################
 FIND_PROGRAM( ELOG_EXECUTABLE elog HINTS /usr/local/bin /usr/bin )
@@ -59,7 +74,7 @@ FOREACH( pkg ROOT DIM MySQL xdrstream LOG4CXX )
   INCLUDE_DIRECTORIES( ${${pkg}_INCLUDE_DIRS} )
   LINK_LIBRARIES( ${${pkg}_LIBRARIES} )
   ADD_DEFINITIONS ( ${${pkg}_DEFINITIONS} )
-  
+
   LIST( APPEND ${PROJECT_NAME}_DEPENDS_INCLUDE_DIRS ${${pkg}_INCLUDE_DIRS} )
   LIST( APPEND ${PROJECT_NAME}_DEPENDS_LIBRARY_DIRS ${${pkg}_LIBRARY_DIRS} )
   LIST( APPEND ${PROJECT_NAME}_DEPENDS_LIBRARIES ${${pkg}_LIBRARIES} )
@@ -79,18 +94,38 @@ IF( INSTALL_DOC )
     ENDIF()
 ENDIF()
 
+# ----- levbdim -----
+IF( BUILD_EVB )
+	
+	FIND_PACKAGE( levbdim REQUIRED )
+	
+	IF( NOT levbdim_FOUND )
+		MESSAGE( SEND_ERROR "levbdim package not found !" )
+		MESSAGE( "Please switch OFF BUILD_EVB or adjust your CMAKE_MODULE_PATH" )
+	ENDIF()
+	
+	INCLUDE_DIRECTORIES( ${levbdim_INCLUDE_DIRS} )
+	LINK_LIBRARIES( ${levbdim_LIBRARIES} )
+	ADD_DEFINITIONS ( ${levbdim_DEFINITIONS} )
+
+	LIST( APPEND ${PROJECT_NAME}_DEPENDS_INCLUDE_DIRS ${levbdim_INCLUDE_DIRS} )
+	LIST( APPEND ${PROJECT_NAME}_DEPENDS_LIBRARY_DIRS ${levbdim_LIBRARY_DIRS} )
+	LIST( APPEND ${PROJECT_NAME}_DEPENDS_LIBRARIES ${levbdim_LIBRARIES} )
+	
+ENDIF()
+
 ###############################
-# Generate DQMCoreConfig.h 
+# Generate DQMCoreConfig.h
 CONFIGURE_FILE( "${PROJECT_SOURCE_DIR}/cmake/${PROJECT_NAME}Config.h.cmake.in"
     "${PROJECT_SOURCE_DIR}/source/include/${PROJECT_NAME}Config.h" @ONLY )
-    
+
 ###############################
 # Add source directory
 ADD_SUBDIRECTORY( ./source )
 
 ###############################
 # Install scripts files
-FILE ( GLOB SCRIPTS_FILES scripts/* 
+FILE ( GLOB SCRIPTS_FILES scripts/*
 	PATTERN "*~" EXCLUDE
     PATTERN "*#*" EXCLUDE
     PATTERN ".#*" EXCLUDE
@@ -98,10 +133,10 @@ FILE ( GLOB SCRIPTS_FILES scripts/*
     PATTERN "*.svn" EXCLUDE
 )
 
-INSTALL( 
-	FILES ${SCRIPTS_FILES} 
-	DESTINATION bin 
-    PERMISSIONS 
+INSTALL(
+	FILES ${SCRIPTS_FILES}
+	DESTINATION bin
+    PERMISSIONS
     OWNER_READ OWNER_WRITE OWNER_EXECUTE
     GROUP_READ GROUP_EXECUTE
     WORLD_READ WORLD_EXECUTE
@@ -109,7 +144,7 @@ INSTALL(
 
 ###############################
 # Install conf files
-FILE ( GLOB CONF_FILES conf/* 
+FILE ( GLOB CONF_FILES conf/*
 	PATTERN "*~" EXCLUDE
     PATTERN "*#*" EXCLUDE
     PATTERN ".#*" EXCLUDE
@@ -117,8 +152,8 @@ FILE ( GLOB CONF_FILES conf/*
     PATTERN "*.svn" EXCLUDE
 )
 
-INSTALL( 
-	FILES ${CONF_FILES} 
+INSTALL(
+	FILES ${CONF_FILES}
 	DESTINATION conf
 )
 

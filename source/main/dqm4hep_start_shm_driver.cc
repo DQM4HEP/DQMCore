@@ -1,7 +1,7 @@
-  /// \file dqm4hep_start_analysis_module.cc
+  /// \file dqm4hep_start_shm_driver.cc
 /*
  *
- * dqm4hep_start_analysis_module.cc main source file template automatically generated
+ * dqm4hep_start_shm_driver.cc main source file template automatically generated
  * Creation date : mer. nov. 5 2014
  *
  * This file is part of DQM4HEP libraries.
@@ -29,7 +29,7 @@
 #include "dqm4hep/DQM4HEP.h"
 #include "dqm4hep/DQMLogging.h"
 #include "dqm4hep/DQMPluginManager.h"
-#include "dqm4hep/DQMAnalysisModuleApplication.h"
+#include "dqm4hep/evb/DQMShmProxyApplication.h"
 
 // -- tclap headers
 #include "tclap/CmdLine.h"
@@ -45,7 +45,7 @@
 using namespace std;
 using namespace dqm4hep;
 
-DQMAnalysisModuleApplication *pApplication = NULL;
+DQMShmProxyApplication *pApplication = NULL;
 
 // simple function to exit the program
 void exit_application(int returnCode)
@@ -84,6 +84,7 @@ void seg_viol_signal_handling(int signal)
 	exit_application( static_cast<int>(STATUS_CODE_INVALID_PTR) );
 }
 
+//-------------------------------------------------------------------------------------------------
 
 int main(int argc, char* argv[])
 {
@@ -103,23 +104,14 @@ int main(int argc, char* argv[])
 				 , "string");
 	pCommandLine->add(steeringFileNameArg);
 
-	TCLAP::ValueArg<std::string> moduleTypeArg(
-				  "t"
-				 , "module-type"
-				 , "The module type to look for in plugin dlls."
-				 , false
-				 , ""
-				 , "string");
-	pCommandLine->add(moduleTypeArg);
-
-	TCLAP::ValueArg<std::string> moduleNameArg(
+	TCLAP::ValueArg<std::string> applicationNameArg(
 				  "n"
-				 , "module-name"
-				 , "The module name to declare on the network"
+				 , "application-name"
+				 , "The shm proxy name to declare on the network"
 				 , false
-				 , ""
+				 , "DQMShmProxy-DEFAULT"
 				 , "string");
-	pCommandLine->add(moduleNameArg);
+	pCommandLine->add(applicationNameArg);
 
 	TCLAP::ValueArg<std::string> loggerConfigArg(
 				  "l"
@@ -151,7 +143,7 @@ int main(int argc, char* argv[])
 	pCommandLine->add(verbosityArg);
 
 	// parse command line
-	std::cout << "dqm4hep_start_analysis_module: Parsing command line ..." << std::endl;
+	std::cout << "dqm4hep_start_shm_driver: Parsing command line ..." << std::endl;
 	pCommandLine->parse(argc, argv);
 
 	log4cxx_file = loggerConfigArg.getValue();
@@ -164,14 +156,14 @@ int main(int argc, char* argv[])
 	LOG4CXX_INFO( dqmMainLogger , "Installing signal handlers ..." );
 	signal(SIGINT,  int_key_signal_handler);
 
-	LOG4CXX_INFO( dqmMainLogger , "Creating analysis module application ..." );
+	LOG4CXX_INFO( dqmMainLogger , "Creating shm proxy application ..." );
 
 	try
 	{
-		// load plugins is env var is set
+		// load plugins if env var is set
 		THROW_RESULT_IF(STATUS_CODE_SUCCESS, !=, DQMPluginManager::instance()->loadLibraries());
 
-		pApplication = new DQMAnalysisModuleApplication();
+		pApplication = new DQMShmProxyApplication();
 	}
 	catch(StatusCodeException &exception)
 	{
@@ -179,16 +171,13 @@ int main(int argc, char* argv[])
 		exit_application( exception.getStatusCode() );
 	}
 
-	LOG4CXX_INFO( dqmMainLogger , "Creating analysis module application ... OK" );
-	LOG4CXX_INFO( dqmMainLogger , "Module application read settings ..." );
+	LOG4CXX_INFO( dqmMainLogger , "Creating shm proxy application ... OK" );
+	LOG4CXX_INFO( dqmMainLogger , "Shm proxy application read settings ..." );
 
 	try
 	{
-		if(moduleTypeArg.isSet())
-			THROW_RESULT_IF(STATUS_CODE_SUCCESS, !=, pApplication->setModuleType(moduleTypeArg.getValue()));
-
-		if(moduleNameArg.isSet())
-			THROW_RESULT_IF(STATUS_CODE_SUCCESS, !=, pApplication->setModuleName(moduleNameArg.getValue()));
+		if(applicationNameArg.isSet())
+			pApplication->setName(applicationNameArg.getValue());
 
 		THROW_RESULT_IF(STATUS_CODE_SUCCESS, !=, pApplication->readSettings(steeringFileNameArg.getValue()));
 	}
@@ -198,8 +187,8 @@ int main(int argc, char* argv[])
 		exit_application( exception.getStatusCode() );
 	}
 
-	LOG4CXX_INFO( dqmMainLogger , "Module application read settings ... OK" );
-	LOG4CXX_INFO( dqmMainLogger , "Running module application ..." );
+	LOG4CXX_INFO( dqmMainLogger , "Shm proxy application read settings ... OK" );
+	LOG4CXX_INFO( dqmMainLogger , "Running shm proxy application ..." );
 
 	try
 	{
